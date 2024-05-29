@@ -1,8 +1,9 @@
 import tkinter as tk
-from tkinter import messagebox
+from tkinter import messagebox, filedialog
 from pynput import mouse, keyboard
 import threading
 import time
+import json
 
 # Global variables to store events and control flags
 recorded_events = []
@@ -35,56 +36,111 @@ def stop_recording():
 # Callback functions to capture events
 def on_click(x, y, button, pressed):
     if recording:
-        recorded_events.append(('mouse_click', x, y, button, pressed))
+        event = ('mouse_click', x, y, str(button), pressed)
+        recorded_events.append(event)
+        listbox.insert(tk.END, event)
 
 def on_move(x, y):
     if recording:
-        recorded_events.append(('mouse_move', x, y))
+        event = ('mouse_move', x, y)
+        recorded_events.append(event)
+        listbox.insert(tk.END, event)
 
 def on_press(key):
     if recording:
-        recorded_events.append(('key_press', key))
+        event = ('key_press', str(key))
+        recorded_events.append(event)
+        listbox.insert(tk.END, event)
     if key == keyboard.Key.f12:
         stop_recording()
 
 def on_release(key):
     if recording:
-        recorded_events.append(('key_release', key))
+        event = ('key_release', str(key))
+        recorded_events.append(event)
+        listbox.insert(tk.END, event)
 
 # Replay recorded events
 def replay_events():
     for event in recorded_events:
         if event[0] == 'mouse_click':
-            x, y, button, pressed = event[1], event[2], event[3], event[4]
+            _, x, y, button, pressed = event
+            button = mouse.Button[button.split('.')[-1]]
             if pressed:
                 mouse_controller.press(button)
             else:
                 mouse_controller.release(button)
             mouse_controller.position = (x, y)
         elif event[0] == 'mouse_move':
-            x, y = event[1], event[2]
+            _, x, y = event
             mouse_controller.position = (x, y)
         elif event[0] == 'key_press':
-            key = event[1]
+            _, key = event
+            key = keyboard.Key[key.split('.')[-1]] if 'Key' in key else key.strip("'")
             keyboard_controller.press(key)
         elif event[0] == 'key_release':
-            key = event[1]
+            _, key = event
+            key = keyboard.Key[key.split('.')[-1]] if 'Key' in key else key.strip("'")
             keyboard_controller.release(key)
         time.sleep(0.01)
 
+# Save events to a file
+def save_events():
+    file_path = filedialog.asksaveasfilename(defaultextension=".json", filetypes=[("JSON files", "*.json")])
+    if file_path:
+        with open(file_path, 'w') as file:
+            json.dump(recorded_events, file)
+        messagebox.showinfo("Info", "Events saved successfully!")
+
+# Load events from a file
+def load_events():
+    global recorded_events
+    file_path = filedialog.askopenfilename(filetypes=[("JSON files", "*.json")])
+    if file_path:
+        with open(file_path, 'r') as file:
+            recorded_events = json.load(file)
+        listbox.delete(0, tk.END)
+        for event in recorded_events:
+            listbox.insert(tk.END, event)
+        messagebox.showinfo("Info", "Events loaded successfully!")
+
+# Delete selected event
+def delete_event():
+    selected_indices = listbox.curselection()
+    if selected_indices:
+        for index in reversed(selected_indices):
+            listbox.delete(index)
+            del recorded_events[index]
+
 # GUI setup
 def create_gui():
+    global listbox
     window = tk.Tk()
     window.title("Event Recorder")
 
-    start_button = tk.Button(window, text="Start Recording", command=lambda: threading.Thread(target=start_recording).start())
-    start_button.pack(pady=10)
+    frame = tk.Frame(window)
+    frame.pack(pady=10)
 
-    stop_button = tk.Button(window, text="Stop Recording (F12)", command=stop_recording)
-    stop_button.pack(pady=10)
+    start_button = tk.Button(frame, text="Start Recording", command=lambda: threading.Thread(target=start_recording).start())
+    start_button.grid(row=0, column=0, padx=5)
 
-    replay_button = tk.Button(window, text="Replay Events", command=lambda: threading.Thread(target=replay_events).start())
-    replay_button.pack(pady=10)
+    stop_button = tk.Button(frame, text="Stop Recording (F12)", command=stop_recording)
+    stop_button.grid(row=0, column=1, padx=5)
+
+    replay_button = tk.Button(frame, text="Replay Events", command=lambda: threading.Thread(target=replay_events).start())
+    replay_button.grid(row=0, column=2, padx=5)
+
+    save_button = tk.Button(frame, text="Save Events", command=save_events)
+    save_button.grid(row=1, column=0, padx=5)
+
+    load_button = tk.Button(frame, text="Load Events", command=load_events)
+    load_button.grid(row=1, column=1, padx=5)
+
+    delete_button = tk.Button(frame, text="Delete Event", command=delete_event)
+    delete_button.grid(row=1, column=2, padx=5)
+
+    listbox = tk.Listbox(window, width=100, height=20)
+    listbox.pack(pady=10)
 
     window.mainloop()
 
