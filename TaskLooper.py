@@ -4,6 +4,7 @@ from pynput import mouse, keyboard
 import threading
 import time
 import json
+import sys
 
 # Global variables to store events and control flags
 recorded_events = []
@@ -112,9 +113,15 @@ def delete_event():
             listbox.delete(index)
             del recorded_events[index]
 
+# Handle window close event
+def on_closing():
+    if messagebox.askokcancel("Quit", "Do you want to quit?"):
+        window.destroy()
+        sys.exit()
+
 # GUI setup
 def create_gui():
-    global listbox
+    global window, listbox
     window = tk.Tk()
     window.title("Event Recorder")
 
@@ -142,6 +149,7 @@ def create_gui():
     listbox = tk.Listbox(window, width=100, height=20)
     listbox.pack(pady=10)
 
+    window.protocol("WM_DELETE_WINDOW", on_closing)
     window.mainloop()
 
 # Controllers for mouse and keyboard
